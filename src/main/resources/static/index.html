@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FX Exposure Management & Hedging Platform</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%200%20100%20100%22><text y=%22.9em%22 font-size=%2290%22>💱</text></svg>">
+</head>
+<body>
+
+    <!-- Top Header -->
+    <header>
+        <div class="header-container">
+            <div class="logo-container">
+                <div class="logo-icon">FX</div>
+                <div>
+                    <div class="brand-title">FX Exposure Management Platform</div>
+                    <div class="brand-subtitle">Enterprise Corporate Treasury, Hedging & Mark-to-Market Valuation</div>
+                </div>
+            </div>
+
+            <div class="header-actions">
+                <a href="/swagger-ui/index.html" target="_blank" class="btn btn-secondary btn-sm" title="Interactive REST API Documentation">
+                    📘 API Docs (Swagger)
+                </a>
+                <a href="/api/health" target="_blank" class="btn btn-secondary btn-sm" title="System Health">
+                    🟢 API Health
+                </a>
+                <div class="user-badge" id="user-badge-container">
+                    <span id="current-user-name">Loading...</span>
+                    <span class="role-pill" id="current-user-role">ANALYST</span>
+                    <button class="btn btn-secondary btn-sm" onclick="showAuthModal()" style="padding: 0.15rem 0.4rem; font-size: 0.7rem;">Switch / Login</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+        <div class="nav-container">
+            <div class="nav-tab active" onclick="switchTab('dashboard')">📊 Executive Dashboard</div>
+            <div class="nav-tab" onclick="switchTab('exposures')">📁 Exposures</div>
+            <div class="nav-tab" onclick="switchTab('hedges')">📈 Hedge Contracts (Deals)</div>
+            <div class="nav-tab" onclick="switchTab('allocations')">🔗 Allocations & Links</div>
+            <div class="nav-tab" onclick="switchTab('stresstest')">⚡ Scenario Stress Testing</div>
+            <div class="nav-tab" onclick="switchTab('policies')">🛡️ Risk Policies & Alerts</div>
+            <div class="nav-tab" onclick="switchTab('audit')">📜 Audit Trail</div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main>
+
+        <!-- TAB 1: EXECUTIVE DASHBOARD -->
+        <div id="tab-dashboard" class="tab-pane active">
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Net Open Exposure</div>
+                    <div class="kpi-value" id="kpi-net-exposure">$0.00</div>
+                    <div class="kpi-sub" id="kpi-net-exposure-sub">Across all currency pairs</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Hedged Notional</div>
+                    <div class="kpi-value positive" id="kpi-hedged-amount">$0.00</div>
+                    <div class="kpi-sub" id="kpi-hedged-amount-sub">In active derivative contracts</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Portfolio Hedge Ratio</div>
+                    <div class="kpi-value" id="kpi-hedge-ratio">0.0%</div>
+                    <div class="kpi-sub">Target policy min: 70.0%</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Portfolio Derivatives MtM</div>
+                    <div class="kpi-value" id="kpi-portfolio-mtm">$0.00</div>
+                    <div class="kpi-sub">Fair value unrealized gain/loss</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Active Compliance Alerts</div>
+                    <div class="kpi-value" id="kpi-active-alerts">0</div>
+                    <div class="kpi-sub" id="kpi-alerts-sub">Policy & threshold breaches</div>
+                </div>
+            </div>
+
+            <!-- Currency Breakdown & Rates Grid -->
+            <div class="section-grid">
+                <!-- Currency Breakdown Table -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">🌐 Currency Net Open Exposure & Hedge Coverage</div>
+                        <button class="btn btn-secondary btn-sm" onclick="loadDashboard()">🔄 Refresh</button>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Currency</th>
+                                    <th>Gross Exposure</th>
+                                    <th>Hedged Amount</th>
+                                    <th>Net Open (NOE)</th>
+                                    <th>Coverage %</th>
+                                    <th>Base Val (USD)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="currency-breakdown-body">
+                                <tr><td colspan="6" style="text-align: center;">Loading currency breakdown...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Live FX Rate Board & Converter -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">💱 Live FX Rates</div>
+                        <button class="btn btn-primary btn-sm" onclick="showRateModal()">+ Add / Update Rate</button>
+                    </div>
+                    <div class="table-responsive" style="max-height: 220px; margin-bottom: 1rem;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Pair</th>
+                                    <th>Spot Rate</th>
+                                    <th>Type</th>
+                                </tr>
+                            </thead>
+                            <tbody id="latest-rates-body">
+                                <tr><td colspan="3">Loading rates...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Quick Converter -->
+                    <div style="border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                        <div style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem;">Quick FX Converter</div>
+                        <div class="form-row" style="grid-template-columns: 1fr 1fr 1fr;">
+                            <input type="number" id="conv-amount" placeholder="Amount" value="100000">
+                            <select id="conv-from">
+                                <option value="USD">USD</option>
+                                <option value="EUR" selected>EUR</option>
+                                <option value="GBP">GBP</option>
+                                <option value="JPY">JPY</option>
+                                <option value="CAD">CAD</option>
+                                <option value="INR">INR</option>
+                            </select>
+                            <select id="conv-to">
+                                <option value="USD" selected>USD</option>
+                                <option value="EUR">EUR</option>
+                                <option value="GBP">GBP</option>
+                                <option value="JPY">JPY</option>
+                                <option value="CAD">CAD</option>
+                                <option value="INR">INR</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 0.5rem;">
+                            <button class="btn btn-secondary btn-sm" onclick="executeConversion()">Convert</button>
+                            <div id="conv-result" style="font-weight: 600; color: #60a5fa;">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cash Flow Maturity Ladder & 1-Month VaR -->
+            <div class="section-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">📅 Cash Flow Maturity Ladder (Time Buckets)</div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time Horizon</th>
+                                    <th>Inflows (USD)</th>
+                                    <th>Outflows (USD)</th>
+                                    <th>Net Exposure</th>
+                                    <th>Hedged (USD)</th>
+                                    <th>Net Open (USD)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="maturity-ladder-body">
+                                <tr><td colspan="6" style="text-align:center;">Loading maturity ladder...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 1-Month Parametric VaR Card -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">🛡️ Value at Risk (VaR Analytics)</div>
+                    </div>
+                    <div style="padding: 0.5rem 0;">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                            Parametric 1-Month Portfolio FX Risk Horizon:
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                            <span>95% Confidence (1-Mo VaR):</span>
+                            <span id="var-95-val" style="font-weight: 700; color: var(--warning);">$0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;">
+                            <span>99% Confidence (1-Mo VaR):</span>
+                            <span id="var-99-val" style="font-weight: 700; color: var(--danger);">$0.00</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Portfolio Notional at Risk:</span>
+                            <span id="var-notional-val" style="font-weight: 600;">$0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2: EXPOSURES MANAGEMENT -->
+        <div id="tab-exposures" class="tab-pane">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📁 Underlying FX Exposures (Invoices, Receivables, Payables)</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="loadExposures()">🔄 Refresh</button>
+                        <button class="btn btn-primary btn-sm" onclick="showCreateExposureModal()">+ New Exposure</button>
+                    </div>
+                </div>
+
+                <!-- Filter Toolbar -->
+                <div class="form-row" style="margin-bottom: 1rem;">
+                    <div>
+                        <label>Currency</label>
+                        <select id="exp-filter-currency" onchange="filterExposures()">
+                            <option value="">All Currencies</option>
+                            <option value="EUR">EUR</option>
+                            <option value="GBP">GBP</option>
+                            <option value="JPY">JPY</option>
+                            <option value="CAD">CAD</option>
+                            <option value="INR">INR</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label>Status</label>
+                        <select id="exp-filter-status" onchange="filterExposures()">
+                            <option value="">All Statuses</option>
+                            <option value="UNHEDGED">UNHEDGED</option>
+                            <option value="PARTIALLY_HEDGED">PARTIALLY_HEDGED</option>
+                            <option value="FULLY_HEDGED">FULLY_HEDGED</option>
+                            <option value="SETTLED">SETTLED</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Exposures Table -->
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Reference</th>
+                                <th>Entity / Description</th>
+                                <th>Type & Direction</th>
+                                <th>Amount</th>
+                                <th>Maturity Date</th>
+                                <th>Status</th>
+                                <th>Hedged Amount</th>
+                                <th>Coverage %</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="exposures-table-body">
+                            <tr><td colspan="9" style="text-align: center;">Loading exposures...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3: HEDGE CONTRACTS (DERIVATIVES) -->
+        <div id="tab-hedges" class="tab-pane">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📈 FX Derivative Contracts (Spot, Forward, Options)</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="revalueAllHedges()">⚡ Revalue All MtM</button>
+                        <button class="btn btn-secondary btn-sm" onclick="loadHedges()">🔄 Refresh</button>
+                        <button class="btn btn-primary btn-sm" onclick="showBookHedgeModal()">+ Book Derivative Deal</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Deal Reference</th>
+                                <th>Instrument</th>
+                                <th>Direction</th>
+                                <th>Pair</th>
+                                <th>Primary Notional</th>
+                                <th>Strike Rate</th>
+                                <th>Market Rate</th>
+                                <th>Maturity Date</th>
+                                <th>Counterparty</th>
+                                <th>Status</th>
+                                <th>MtM (USD)</th>
+                                <th>Realized P&L</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="hedges-table-body">
+                            <tr><td colspan="13" style="text-align: center;">Loading hedge deals...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: ALLOCATIONS & LINKAGES -->
+        <div id="tab-allocations" class="tab-pane">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">🔗 Hedge to Exposure Allocations (Hedge Accounting)</div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button class="btn btn-secondary btn-sm" onclick="loadAllocations()">🔄 Refresh</button>
+                        <button class="btn btn-primary btn-sm" onclick="showCreateAllocationModal()">+ Link Deal to Exposure</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Allocation ID</th>
+                                <th>Exposure Reference</th>
+                                <th>Deal Reference</th>
+                                <th>Currency</th>
+                                <th>Allocated Amount</th>
+                                <th>Effective Rate</th>
+                                <th>Allocation Date</th>
+                                <th>Notes</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="allocations-table-body">
+                            <tr><td colspan="9" style="text-align: center;">Loading allocations...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: SCENARIO STRESS TESTING -->
+        <div id="tab-stresstest" class="tab-pane">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">⚡ FX Scenario & "What-If" Stress Simulator</div>
+                    <button class="btn btn-primary btn-sm" onclick="executeStressTest()">Run Stress Simulation</button>
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Simulate the financial impact of currency market shifts on both underlying unhedged exposures and your active derivative hedge positions.
+                    </p>
+
+                    <!-- Uniform Slider -->
+                    <div class="panel" style="background-color: var(--bg-input);">
+                        <label>Uniform Global FX Shock vs Base Currency (USD):</label>
+                        <div class="slider-container">
+                            <span>-25% (Depreciation)</span>
+                            <input type="range" id="shock-uniform" min="-25" max="25" step="1" value="5" oninput="updateSliderLabel('uniform')">
+                            <span>+25% (Appreciation)</span>
+                            <div class="slider-val positive" id="shock-uniform-val">+5%</div>
+                        </div>
+                    </div>
+
+                    <!-- Individual Currency Shocks -->
+                    <div class="form-row">
+                        <div>
+                            <label>EUR Shock (%):</label>
+                            <input type="number" id="shock-eur" value="5" step="0.5">
+                        </div>
+                        <div>
+                            <label>GBP Shock (%):</label>
+                            <input type="number" id="shock-gbp" value="-3" step="0.5">
+                        </div>
+                        <div>
+                            <label>JPY Shock (%):</label>
+                            <input type="number" id="shock-jpy" value="10" step="0.5">
+                        </div>
+                        <div>
+                            <label>INR Shock (%):</label>
+                            <input type="number" id="shock-inr" value="-2" step="0.5">
+                        </div>
+                        <div>
+                            <label>CAD Shock (%):</label>
+                            <input type="number" id="shock-cad" value="3" step="0.5">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Simulation Results -->
+                <div class="panel" id="simulation-results-panel" style="background-color: var(--bg-card-hover); border-color: #3b82f6;">
+                    <div class="panel-title" style="margin-bottom: 0.75rem;">📊 Simulation Output Summary</div>
+                    <div class="kpi-grid">
+                        <div class="kpi-card" style="background-color: var(--bg-card);">
+                            <div class="kpi-label">Exposure P&L Impact</div>
+                            <div class="kpi-value" id="sim-exp-impact">$0.00</div>
+                            <div class="kpi-sub">Gain/loss on unhedged cash flows</div>
+                        </div>
+                        <div class="kpi-card" style="background-color: var(--bg-card);">
+                            <div class="kpi-label">Hedge Portfolio MtM Delta</div>
+                            <div class="kpi-value" id="sim-hdg-impact">$0.00</div>
+                            <div class="kpi-sub">Gain/loss on derivative positions</div>
+                        </div>
+                        <div class="kpi-card" style="background-color: var(--bg-card);">
+                            <div class="kpi-label">Net Portfolio P&L Impact</div>
+                            <div class="kpi-value" id="sim-net-impact">$0.00</div>
+                            <div class="kpi-sub" id="sim-net-percent">0.0% of portfolio</div>
+                        </div>
+                    </div>
+                    <div id="sim-narrative-summary" style="font-size: 0.9rem; color: #cbd5e1; padding: 0.5rem 0;">
+                        Click "Run Stress Simulation" to calculate portfolio impact under the selected shock parameters.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6: RISK POLICIES & ALERTS -->
+        <div id="tab-policies" class="tab-pane">
+            <div class="section-grid">
+                <!-- Policies List -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">🛡️ Corporate Treasury Risk Policies</div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary btn-sm" onclick="loadPolicies()">🔄 Refresh</button>
+                            <button class="btn btn-primary btn-sm" onclick="showCreatePolicyModal()">+ New Policy</button>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Policy Name</th>
+                                    <th>Currency</th>
+                                    <th>Max Unhedged (USD)</th>
+                                    <th>Min Hedge Ratio</th>
+                                    <th>Max Bank Limit</th>
+                                    <th>Active</th>
+                                </tr>
+                            </thead>
+                            <tbody id="policies-table-body">
+                                <tr><td colspan="6" style="text-align: center;">Loading policies...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Compliance Check & Active Alerts -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <div class="panel-title">⚠️ Compliance Alerts</div>
+                        <button class="btn btn-primary btn-sm" onclick="runComplianceCheck()">⚡ Run Compliance Check</button>
+                    </div>
+                    <div class="table-responsive" style="max-height: 400px;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Severity</th>
+                                    <th>Type</th>
+                                    <th>Message</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="alerts-table-body">
+                                <tr><td colspan="4" style="text-align: center;">Loading alerts...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 7: AUDIT TRAIL -->
+        <div id="tab-audit" class="tab-pane">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-title">📜 Treasury Operations Audit Log</div>
+                    <button class="btn btn-secondary btn-sm" onclick="loadAuditLogs()">🔄 Refresh</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Action</th>
+                                <th>Entity</th>
+                                <th>Entity ID</th>
+                                <th>User</th>
+                                <th>Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audit-table-body">
+                            <tr><td colspan="6" style="text-align: center;">Loading audit logs...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- MODAL: ADD / UPDATE EXCHANGE RATE -->
+    <div id="modal-rate" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Update FX Exchange Rate</div>
+                <button class="modal-close" onclick="closeModal('modal-rate')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Base Currency</label>
+                        <input type="text" id="rate-base" value="USD" maxlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Quote Currency</label>
+                        <input type="text" id="rate-quote" placeholder="e.g. EUR" maxlength="3">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Exchange Rate (1 Base = X Quote)</label>
+                    <input type="number" id="rate-value" step="0.000001" placeholder="e.g. 0.925000">
+                </div>
+                <div class="form-group">
+                    <label>Rate Type</label>
+                    <select id="rate-type">
+                        <option value="SPOT">SPOT</option>
+                        <option value="FORWARD_1M">FORWARD_1M</option>
+                        <option value="FORWARD_3M">FORWARD_3M</option>
+                        <option value="FORWARD_6M">FORWARD_6M</option>
+                        <option value="FORWARD_1Y">FORWARD_1Y</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-rate')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitRateUpdate()">Save Rate</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CREATE EXPOSURE -->
+    <div id="modal-exposure" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Create New Exposure</div>
+                <button class="modal-close" onclick="closeModal('modal-exposure')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Company Entity / Subsidiary</label>
+                    <input type="text" id="exp-entity" placeholder="e.g. Acme Corp Germany GmbH">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Exposure Type</label>
+                        <select id="exp-type">
+                            <option value="RECEIVABLE_INVOICE">RECEIVABLE_INVOICE</option>
+                            <option value="PAYABLE_INVOICE">PAYABLE_INVOICE</option>
+                            <option value="FORECASTED_REVENUE">FORECASTED_REVENUE</option>
+                            <option value="FORECASTED_EXPENSE">FORECASTED_EXPENSE</option>
+                            <option value="BALANCE_SHEET_ASSET">BALANCE_SHEET_ASSET</option>
+                            <option value="BALANCE_SHEET_LIABILITY">BALANCE_SHEET_LIABILITY</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Cash Flow Direction</label>
+                        <select id="exp-direction">
+                            <option value="INFLOW">INFLOW</option>
+                            <option value="OUTFLOW">OUTFLOW</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Currency</label>
+                        <input type="text" id="exp-currency" placeholder="EUR" maxlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" id="exp-amount" placeholder="500000" step="0.01">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Value / Maturity Date</label>
+                    <input type="date" id="exp-date">
+                </div>
+                <div class="form-group">
+                    <label>Description / Reference Details</label>
+                    <input type="text" id="exp-desc" placeholder="Commercial export billing invoice #...">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-exposure')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreateExposure()">Create Exposure</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: BOOK HEDGE DEAL -->
+    <div id="modal-hedge" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Book Derivative Hedge Contract</div>
+                <button class="modal-close" onclick="closeModal('modal-hedge')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Hedge Type</label>
+                        <select id="hdg-type">
+                            <option value="FORWARD">FORWARD</option>
+                            <option value="SPOT">SPOT</option>
+                            <option value="OPTION_CALL">OPTION_CALL</option>
+                            <option value="OPTION_PUT">OPTION_PUT</option>
+                            <option value="FX_SWAP">FX_SWAP</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Direction</label>
+                        <select id="hdg-direction">
+                            <option value="SELL">SELL</option>
+                            <option value="BUY">BUY</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Primary Currency</label>
+                        <input type="text" id="hdg-prim-curr" placeholder="EUR" maxlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Secondary Currency</label>
+                        <input type="text" id="hdg-sec-curr" value="USD" maxlength="3">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Primary Notional Amount</label>
+                        <input type="number" id="hdg-prim-amount" placeholder="1000000" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Strike / Contract Rate</label>
+                        <input type="number" id="hdg-strike" placeholder="1.085000" step="0.000001">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Value / Settlement Date</label>
+                        <input type="date" id="hdg-date">
+                    </div>
+                    <div class="form-group">
+                        <label>Counterparty Bank</label>
+                        <input type="text" id="hdg-bank" placeholder="e.g. JPMorgan Chase">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Premium Amount (USD, for options)</label>
+                    <input type="number" id="hdg-premium" placeholder="0.00" step="0.01">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-hedge')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitBookHedge()">Book Deal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SETTLE HEDGE -->
+    <div id="modal-settle" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Settle Hedge Deal</div>
+                <button class="modal-close" onclick="closeModal('modal-settle')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="settle-deal-id">
+                <div class="form-group">
+                    <label>Deal Reference</label>
+                    <input type="text" id="settle-deal-ref" readonly style="opacity: 0.8;">
+                </div>
+                <div class="form-group">
+                    <label>Final Settlement Rate (Market Spot Rate)</label>
+                    <input type="number" id="settle-rate" step="0.000001" placeholder="Leave empty for current spot rate">
+                </div>
+                <div class="form-group">
+                    <label>Settlement Notes</label>
+                    <input type="text" id="settle-notes" placeholder="Maturity settlement execution">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-settle')">Cancel</button>
+                <button class="btn btn-success" onclick="submitSettleHedge()">Execute Settlement</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CREATE ALLOCATION -->
+    <div id="modal-allocation" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Link Hedge Deal to Exposure</div>
+                <button class="modal-close" onclick="closeModal('modal-allocation')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select Exposure</label>
+                    <select id="alloc-exposure-select"></select>
+                </div>
+                <div class="form-group">
+                    <label>Select Hedge Deal</label>
+                    <select id="alloc-hedge-select"></select>
+                </div>
+                <div class="form-group">
+                    <label>Allocated Amount</label>
+                    <input type="number" id="alloc-amount" placeholder="Amount to allocate" step="0.01">
+                </div>
+                <div class="form-group">
+                    <label>Allocation Notes</label>
+                    <input type="text" id="alloc-notes" placeholder="Hedge accounting linkage">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-allocation')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreateAllocation()">Create Link</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CREATE RISK POLICY -->
+    <div id="modal-policy" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Create Treasury Risk Policy</div>
+                <button class="modal-close" onclick="closeModal('modal-policy')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Policy Name</label>
+                    <input type="text" id="pol-name" placeholder="e.g. APAC Currency Risk Policy">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Target Currency (or ALL)</label>
+                        <input type="text" id="pol-currency" value="ALL" maxlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label>Min Hedge Ratio (%)</label>
+                        <input type="number" id="pol-min-ratio" value="70.0" step="0.1">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Max Unhedged Exposure (USD)</label>
+                        <input type="number" id="pol-max-unhedged" placeholder="2000000" step="1000">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Counterparty Limit (USD)</label>
+                        <input type="number" id="pol-max-bank" placeholder="10000000" step="10000">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <input type="text" id="pol-desc" placeholder="Treasury committee approved mandate">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-policy')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreatePolicy()">Save Policy</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: AUTH / LOGIN SWITCHER -->
+    <div id="modal-auth" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Switch User / Login</div>
+                <button class="modal-close" onclick="closeModal('modal-auth')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+                    Select a predefined demo role or enter custom credentials:
+                </p>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+                    <button class="btn btn-secondary btn-sm" onclick="quickLogin('admin@example.com', 'Admin@123')">Login as ADMIN</button>
+                    <button class="btn btn-secondary btn-sm" onclick="quickLogin('manager@example.com', 'Manager@123')">Login as MANAGER</button>
+                    <button class="btn btn-secondary btn-sm" onclick="quickLogin('analyst@example.com', 'Analyst@123')">Login as ANALYST</button>
+                </div>
+                <hr style="border-color: var(--border-color); margin-bottom: 1rem;">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="auth-email" placeholder="user@example.com">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="auth-password" placeholder="••••••••">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-auth')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCustomLogin()">Sign In</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="notification-toast"></div>
+
+    <!-- Footer -->
+    <footer>
+        FX Exposure Management Platform • Spring Boot 3.3 • Java 21 • Enterprise Corporate Treasury System
+    </footer>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>
+
